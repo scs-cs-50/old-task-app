@@ -270,7 +270,8 @@ $( document ).on( "mobileinit", function () {
 
         // point taskList at the selected taskList
         currTaskList = app.get(currTaskListId);
-
+        console.log('Current Task List');
+        console.dir(currTaskList);
         // update the tasks page header with the taskList's name
         $('#tasks-page header h1').html(currTaskList.getName());
 
