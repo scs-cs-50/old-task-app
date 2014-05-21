@@ -1,15 +1,17 @@
-$( document ).on("pagecreate", "#task-page", function() {
-
-
-  var tasks = taskList(), // new tasklist instance - loads from localstorage
-
-			/**
-			 *  display a task
+$( document ).on( "mobileinit", function () {
+  // initialize the app by creating (and loading, if it exists)
+  // the taskApp, and getting the first taskList (or creating a
+  // new taskList if the collection is empty)
+  var 
+  		/**
+			 * displayTask - add a task to the task display
+       *
+       * @param {Object} task - a task Object
 			 */
-      displayTask = function displayTask (task, taskId) {
-        $('#tasklist').append(
+      displayTask = function displayTask (task) {
+        $('#tasks-list').append(
           [
-            '<li data-icon="carat-r" id="', taskId, '">',
+            '<li data-icon="carat-r" id="', task.id, '">',
             '<a href="#">',
             '<h2>', task.name, '</h2>',
             '<p>', task.details, '</p>',
@@ -20,9 +22,74 @@ $( document ).on("pagecreate", "#task-page", function() {
             '</li>'
           ].join('')
         );
-        $('#tasklist').listview('refresh');
+        $('#tasks-list').listview('refresh');
       },
 
+			/**
+			 * displayTaskList - add a taskList to the taskList display
+       *
+       * @param {Object} taskList - a taskList Object
+			 */
+      displayTaskList = function displayTaskList (taskList) {
+        $('#lists-list').append(
+          [
+            '<li id="', taskList.getId(), '">',
+            '<a href="#">',
+            '<h2>', taskList.getName(), '</h2>',
+            '<p>', taskList.getDescription(), '</p>',
+            '<span class="ui-li-count">',
+            taskList.getAll().length,
+            '</span>',
+            '</a>',
+            '</li>'
+          ].join('')
+        );
+        $('#lists-list').listview('refresh');
+      },
+      
+      /**
+       * deleteTaskList - delete a taskList from the display
+       *                  and the collection of taskLists
+       */
+      deleteTaskList = function deleteTaskList (event) {
+        var taskListItem = event.data,
+            taskListId = taskListItem.attr("id");
+
+        event.preventDefault();
+        
+        if (app.remove(taskListId)) {
+          taskListItem.remove();
+          $('#lists-list').listview('refresh');
+        }
+      },
+
+		  /**
+			 *  Handle the task list submit button
+			 *  Add a new tasklist to the list, display it,
+			 *  and clear the form fields
+			 */
+			createTaskList = function createTaskList (event) {
+		    var list = {}, taskList;
+
+        event.preventDefault();
+
+        list.name = $('#list-name').val().trim();
+        list.description = $('#list-desc').val().trim();
+        
+        $( "#add-list" ).popup("close");
+        if (list.name === '') {
+          setTimeout(function () {
+            $('#no-task-list-name').popup('open');
+          }, 100);
+        } else {
+          taskList = app.add(list);
+  		    $( '#list-name' ).val('');
+  		    $( '#list-desc' ).val('');
+          displayTaskList(taskList);
+          $('#lists-list').listview("refresh");
+        }
+			},
+			
 			/**
 			 * remove a task from the list, and remove it from
 			 * the display
@@ -31,9 +98,11 @@ $( document ).on("pagecreate", "#task-page", function() {
 				var taskItem = event.data,
             taskId = taskItem.attr("id");
         
-        if (tasks.remove(taskId)) {
+        event.preventDefault();
+
+        if (taskList.remove(taskId)) {
           taskItem.remove();
-          $('#tasklist').listview('refresh');
+          $('#tasks-list').listview('refresh');
         }
       },
 			
@@ -42,114 +111,228 @@ $( document ).on("pagecreate", "#task-page", function() {
 			 *  Add a new task to the list, display it,
 			 *  and clear the form fields
 			 */
-			createTask = function createTask (evemt) {
-		    var task = {
-							name: $('#taskname').val(),
-				      details: $('#taskdetails').val()
-						},
-        		taskId = tasks.add(task);
+			createTask = function createTask (event) {
+		    var item = {}, taskId, task;
 
-        displayTask(task, taskId);
+        event.preventDefault();
 
-		    $( '#taskname' ).val('');
-		    $( '#taskdetails' ).val('');
+        item.name = $('#task-name').val().trim();
+				item.details = $('#task-details').val().trim();
+
+        $( "#add-task" ).popup("close");
+        if (item.name === '') {
+          setTimeout(function () {
+            $('#no-task-name').popup('open');
+          }, 100);
+        } else {
+          taskId = taskList.add(item);
+          task = taskList.get(taskId);
+  		    $( '#task-name' ).val('');
+  		    $( '#task-details' ).val('');
+          displayTask(task);
+          $('#tasks-list').listview("refresh");
+        }
 			},
 			
-			/**
-			 *  setup the delete event handler after
-			 *  a left swipe on a task
-			 *
-			 *  if there's an existing task awaiting
-			 *  deletion, clear the delete button on
-			 *  that task frst.
-			 *
-			 *  TODO: that could probably be done with
-			 *        selectors rather than a variable
-			 */
-			setupDelete = function setupDelete (target) {
-				var icon = target.children().last();
+      /**
+       * setupSwipes - setup swipe to delete controls on a listview
+       *
+       * @param {Object} listElement - the listElement to augment
+       * @param {Function} deleteFn - the function to call to delete a list item
+       */
+      setupSwipes = function setupSwipes (listElement, deleteFn) {
+        var
+          /**
+    			 *  setup the delete event handler after
+    			 *  a left swipe on a task or taskList
+    			 *
+    			 *  if there's an existing item awaiting
+    			 *  deletion, clear the delete button on
+    			 *  that item frst.
+    			 */
+    			setupDelete = function setupDelete (target, deleteFn) {
+    				var icon = target.children().last();
 				
-				// clear existing delete button
-				if (taskAwaitingDeletion) {
-					clearDelete(taskAwaitingDeletion);
-				}
+    				// clear existing delete button(s)
+            $(listElement).children("[data-icon='delete']").each(function (idx, el) {
+              clearDelete(el);
+            })
 
-				// change the icon from > to X, use style C for red
-				// background
-				$(icon).attr('data-icon', 'delete')
-		                     .addClass('ui-nodisc-icon ui-icon-delete ui-btn-c')
-		                     .removeClass('ui-icon-carat-r');
+    				// change the icon from > to X, use style C for red
+    				// background, register deleteTask as the click handler,
+    				// and pass in the LI element in event.data
+    				$(icon).attr('data-icon', 'delete')
+    		                     .addClass('ui-nodisc-icon ui-icon-delete ui-btn-c')
+    		                     .removeClass('ui-icon-carat-r')
+                     		     .on('click', null, target, deleteFn);
 
-				// register deleteTask as the click handler,
-				// and pass in the LI element in event.data
-				$(icon).on('click', null, target, deleteTask);
+    				// register deleteTask as the click handler,
+    				// and pass in the LI element in event.data
+    				$(icon).on('click', null, target, deleteFn);
 
-				// record which task has the delete button
-				taskAwaitingDeletion = target;
-			},
+    			},
 			
-			/**
-			 *  Clear the delete button from a target,
-			 *  and remove deleteTask from the click handler
-			 */
-			clearDelete = function clearDelete (target) {
-				var icon = target.children().last();
+    			/**
+    			 *  Clear the delete button from a target,
+    			 *  and remove deleteTask from the click handler
+    			 */
+    			clearDelete = function clearDelete (target) {
+    				var icon = target.children().last();
 
-				if (taskAwaitingDeletion) {
-					$(icon).attr('data-icon', 'carat-r')
-			                     .removeClass('ui-nodisc-icon ui-icon-delete ui-btn-c')
-			                     .addClass('ui-icon-carat-r');
-				
-					$(icon).off('click', deleteTask);
-					taskAwaitingDeletion = null;
-				}
-			},
-			
-			// track which task has the delete button
-			taskAwaitingDeletion = null;
+  					$(icon).attr('data-icon', 'carat-r')
+  			                     .removeClass('ui-nodisc-icon ui-icon-delete ui-btn-c')
+  			                     .addClass('ui-icon-carat-r')
+                             .off('click', deleteTask);
+    			};
+      
+      	// use left swipe to show the delete button on a task
+      	$(listElement).on("swipeleft", function (event) {
+      		// find the LI element that enclose the element
+      		// that received the swipe event
+      		var target = $(event.target).parentsUntil('', 'li');
+      		// set up the delete handler
+      		if (target && target.length === 1) {
+      			setupDelete(target, deleteFn);
+      			$(listElement).listview('refresh');
+      		}
+      	});
+
+      	// use right swipe to hide the delete button on a task
+      	$(listElement).on("swiperight", function (event) {
+      		// find the LI element that enclose the element
+      		// that received the swipe event
+      		var target = $(event.target).parentsUntil('', 'li');
+      		// set up the delete handler
+      		if (target && target.length === 1) {
+      			clearDelete(target);
+      			$(listElement).listview('refresh');
+      		}
+      	});
+      };
+      
+  console.log('INITIALIZING')
+
+  // setup pages
   
-  //
-	// setup
-	//
-	
-
-	// use left swipe to show the delete button on a task
-	$('#tasklist').on("swipeleft", function (event) {
-
-		// find the LI element that enclose the element
-		// that received the swipe event
-		var target = $(event.target).parentsUntil('', 'li');
-
-		// set up the delete handler
-		if (target && target.length === 1) {
-			setupDelete(target);
-			$('#tasklist').listview('refresh');
-		}
-	});
-
-	// use left swipe to hide the delete button on a task
-	$('#tasklist').on("swiperight", function (event) {
-
-		// find the LI element that enclose the element
-		// that received the swipe event
-		var target = $(event.target).parentsUntil('', 'li');
-
-		// set up the delete handler
-		if (target && target.length === 1) {
-			clearDelete(target);
-			$('#tasklist').listview('refresh');
-		}
-	});
-
-	// suppress Enter/Return in forms
+  // suppress Enter/Return in forms
   $("form :input").on("keypress", function(e) {
-      return e.keyCode != 13;
+    return e.keyCode != 13;
+  });
+  
+  // setup the swipe handlers on the tasks page
+  // when creating it
+  $( document ).on("pagecreate", "#tasks-page", function () {
+    setupSwipes($('#tasks-list'), deleteTask);
+    // register the event handler for creating tasks
+    $("#add-task-add").on("click", createTask);
   });
 
-	// display any existing tasks (loaded from localstorage)
-  tasks.forEach(displayTask);
+  // reset the task list every time the tasks page is to be shown
+  $( document ).on("pagebeforeshow", "#tasks-page", function (event) {
+    $('#tasks-list').empty();
+    taskList.forEach(function (task) {
+      displayTask(task)
+    });
+    $('#tasks-list').listview('refresh');
+  });
 
-	// register the event handler for creating tasks
-  $("#add").on("click", createTask);
+  // update the list item's task count on the list page
+  // before switching away from the tasks page
+  $( document ).on("pagebeforehide", "#tasks-page", function (event) {
+    // update lists-page coount
+    var selector = '#' + taskList.getId() + ' .ui-li-count';
+    $(selector).html(taskList.getAll().length);
+  });
 
+  // initialize the list of taskLists page,
+  $( document ).on("pagecreate", '#lists-page', function() {
+    $('#lists-list').empty();
+    
+   // set up swipe controls on the task list
+    setupSwipes($('#lists-list'), deleteTaskList);
+
+    // add a click handler for the add taskList form
+    $("#add-list-add").on("click", createTaskList);
+
+    // add a click handler to the listview to control
+    // navigation into a taskList
+    $("#lists-list").on("click", function (event) {
+  		var target = $(event.target).parentsUntil('', 'li'),
+          currTaskListId;
+
+      // nothing else should be called for this event
+      event.preventDefault();
+
+      if (target && target.length > 0) {
+
+        // get the id of the selected taskList
+        currTaskListId = target.attr('id');
+
+        // point taskList at the selected taskList
+        currTaskList = app.get(currTaskListId);
+
+        // update the tasks page header with the taskList's name
+        $('#tasks-page header h1').html(currTaskList.getName());
+
+        // switch to the tasks page
+        $( ":mobile-pagecontainer" ).pagecontainer( "change", $('#tasks-page'));
+      }
+    });
+  });
+  
+  $( document ).on("pagebeforeshow", "#lists-page", function () {
+    console.log('SETTING UP LISTS PAGE');
+    // add all the taskLists to the page
+    console.dir(app);
+    app.forEach(displayTaskList);
+    $('#lists-list').listview('refresh');
+  });
+  
+  $( ":mobile-pagecontainer" ).pagecontainer( "change", $('#loading-page'));
+  
+
+  function TaskAppUIInit() {
+    if (dropbox.isAuthenticated()) {
+      if (!dropboxLists) {
+        alert("Dropbox not initialized");
+      }
+      app = taskApp();
+      if (app) {
+        console.dir(app.getAll());
+        if (app.getAll().length > 0) {
+          currTaskList = app.getAll()[0];
+        } else {
+          console.log('creating new list');
+          currTaskList = app.add('My First List');
+        }
+      }
+
+      // switch to the task lists page
+      console.log('switching to lists page');
+      $( ":mobile-pagecontainer" ).pagecontainer( "change", $('#lists-page'));
+      console.dir(app.getAll());
+    }
+  }
+
+
+  
+  // Try to finish OAuth authorization.
+  dropbox.authenticate({interactive: false}, function (error) {
+    if (error) {
+      alert('Authentication error: ' + error);
+    }
+  });
+  
+  console.log('adding event handler to dropbox-login');
+	$("#dropbox-login").on("click", function (e) {
+    console.log('GO GO GO DROPBOX!!!');
+		e.preventDefault();
+		// This will redirect the browser to OAuth login.
+		dropbox.authenticate();
+  });
+//  $( ":mobile-pagecontainer" ).pagecontainer( "change", $('#dropbox-login-page'));
+    
+  
 });
+
+
