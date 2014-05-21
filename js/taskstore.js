@@ -374,29 +374,7 @@ var app, currTaskList,
       return that;
     };
 
-if (!dropbox.isAuthenticated()) {
-  console.log('Not authenticated');
-} else {
-  console.log('AUTHENTICATED!');
 
-	dropbox.getDatastoreManager().openDefaultDatastore(function (error, datastore) {
-		if (error) {
-			alert('Error opening default datastore: ' + error);
-		} else {
-
-      dropboxLists = datastore.getTable('tasklists');
-      dropboxTasks = datastore.getTable('tasks');
-        
-      console.log('lists');
-      console.dir(dropboxLists);
-      console.log('tasks');
-      console.dir(dropboxTasks);
-
-      console.log('Starting app');
-      TaskAppUIInit();
-    }
-  });
-}
 
 
 

@@ -294,7 +294,7 @@ $( document ).on( "mobileinit", function () {
   function TaskAppUIInit() {
     if (dropbox.isAuthenticated()) {
       if (!dropboxLists) {
-        alert("Dropbox not initialized");
+        console.error("Dropbox not initialized");
       }
       app = taskApp();
       if (app) {
@@ -314,24 +314,38 @@ $( document ).on( "mobileinit", function () {
     }
   }
 
-
-  
-  // Try to finish OAuth authorization.
-  dropbox.authenticate({interactive: false}, function (error) {
+  dropbox.authenticate({interactive:false}, function (error) {
     if (error) {
       alert('Authentication error: ' + error);
     }
   });
-  
-  console.log('adding event handler to dropbox-login');
-	$("#dropbox-login").on("click", function (e) {
-    console.log('GO GO GO DROPBOX!!!');
-		e.preventDefault();
-		// This will redirect the browser to OAuth login.
-		dropbox.authenticate();
-  });
-//  $( ":mobile-pagecontainer" ).pagecontainer( "change", $('#dropbox-login-page'));
-    
+
+  if (!dropbox.isAuthenticated()) {
+    console.log('XX Not authenticated');
+    console.log('XX ' + localStorage.getItem('dropbox-auth:default:diYWAl4uF0m0AXKI58bLyoCy6M'));
+    //    $( ":mobile-pagecontainer" ).pagecontainer( "change", $('#dropbox-login-page'));
+    $.mobile.navigate( "#dropbox-login-page" );
+  } else {
+    console.log('AUTHENTICATED!');
+
+  	dropbox.getDatastoreManager().openDefaultDatastore(function (error, datastore) {
+  		if (error) {
+  			alert('Error opening default datastore: ' + error);
+  		} else {
+
+        dropboxLists = datastore.getTable('tasklists');
+        dropboxTasks = datastore.getTable('tasks');
+        
+        console.log('lists');
+        console.dir(dropboxLists);
+        console.log('tasks');
+        console.dir(dropboxTasks);
+
+        console.log('Starting app');
+        TaskAppUIInit();
+      }
+    });
+  }
   
 });
 
